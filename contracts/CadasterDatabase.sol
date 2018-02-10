@@ -17,6 +17,7 @@ contract CadasterDatabase {
 
     event EmitPropertyAdded (address seller, uint nrcadastral, uint timeofaquire, bool reserved);
     event EmitPropertyReserved(address seller, uint cadasternumber, uint propertyindex, uint contractindex);
+    event EmitPropertyFree(address seller, uint cadasternumber, uint propertyindex, uint contractindex);
     event EmitSoldProperty(address buyer, uint cadasternumber, uint propertyindex, uint timeofaquire);
 
     modifier onlyOwner {
@@ -151,6 +152,8 @@ contract CadasterDatabase {
     // @dev It is used to mark a Property struct as reserved in order to prevent double selling of the same Property
     // @param _propertyindex The index of Property struct
     // @param _contractindex The index of the Notary contract
+
+    // rename function in order to avoid confusion ?
     function reserveProperty(uint _propertyindex, uint _contractindex) external {
         NI = NotaryInterface(notaries[_contractindex]);
         require(notaries[_contractindex] == NI.getNotaryAddress());
@@ -159,6 +162,21 @@ contract CadasterDatabase {
         propertyarray[_propertyindex].reserved = true;
 
         EmitPropertyReserved(propertyarray[_propertyindex].landlord,
+            propertyarray[_propertyindex].cadasternumber,
+            _propertyindex, _contractindex);
+    }
+
+    // @dev It is used to mark a Property struct as free for sale
+    // @param _propertyindex The index of Property struct
+    // @param _contractindex The index of the Notary contract
+    function releaseProperty(uint _propertyindex, uint _contractindex) external {
+        NI = NotaryInterface(notaries[_contractindex]);
+        require(notaries[_contractindex] == NI.getNotaryAddress());
+        require(propertyarray[_propertyindex].landlord == NI.getNotarySeller());
+        require(propertyarray[_propertyindex].cadasternumber == NI.getNotayCadasterNumber());
+        propertyarray[_propertyindex].reserved = false;
+
+        EmitPropertyFree(propertyarray[_propertyindex].landlord,
             propertyarray[_propertyindex].cadasternumber,
             _propertyindex, _contractindex);
     }
@@ -183,9 +201,6 @@ contract CadasterDatabase {
     }
 
     // @dev fallback function
-    function() public payable { revert(); }
-    // Starting from Solidity 0.4.0, contracts without a fallback
-    // function automatically revert payments, making the code above redundant.
+    function() public payable {}
 
-    // to do: modify cadasternumber from uint to string ?
 }
