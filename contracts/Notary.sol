@@ -283,11 +283,13 @@ contract Notary {
 
         if (sellerprice == buyerprice && sellerprice != 0 && buyerprice != 0) {
             price = sellerprice; // or price = buyerprice;
+            pricedifference = price.sub(downpaymentseller);
 
             EmitNewPriceSet(sellerprice);
         }
         if (sellerduration == buyerduration && sellerduration != 0 && buyerduration != 0) {
             duration = buyerduration; // idem
+            endtime = starttime.add(duration);
 
             EmitNewDurationSet(buyerduration);
         }
