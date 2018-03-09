@@ -1,62 +1,15 @@
-pragma solidity ^0.4.19;
+pragma solidity ^0.4.21;
 
-/**
- * @title SafeMath
- * @dev Math operations with safety checks that throw on error
- */
-library SafeMath {
-
-  /**
-  * @dev Multiplies two numbers, throws on overflow.
-  */
-  function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-    if (a == 0) {
-      return 0;
-    }
-    uint256 c = a * b;
-    assert(c / a == b);
-    return c;
-  }
-
-  /**
-  * @dev Integer division of two numbers, truncating the quotient.
-  */
-  function div(uint256 a, uint256 b) internal pure returns (uint256) {
-    // assert(b > 0); // Solidity automatically throws when dividing by 0
-    uint256 c = a / b;
-    // assert(a == b * c + a % b); // There is no case in which this doesn't hold
-    return c;
-  }
-
-  /**
-  * @dev Substracts two numbers, throws on overflow (i.e. if subtrahend is greater than minuend).
-  */
-  function sub(uint256 a, uint256 b) internal pure returns (uint256) {
-    assert(b <= a);
-    return a - b;
-  }
-
-  /**
-  * @dev Adds two numbers, throws on overflow.
-  */
-  function add(uint256 a, uint256 b) internal pure returns (uint256) {
-    uint256 c = a + b;
-    assert(c >= a);
-    return c;
-  }
-}
-
+import "./math/SafeMath.sol";
 
 contract CadasterDatabaseInterface {
 
-    function forIndex(uint _propertyindex) external view returns (address, uint, bool);
-    function reserveProperty(uint _propertyindex, uint _contractindex) public;
-    function releaseProperty(uint _propertyindex, uint _contractindex) external;
-    function sellProperty(address _newlandlord, uint _propertyindex, uint _contractindex, uint _selltime) public;
-
+    function forIndex(uint256 _propertyindex) external view returns (address, uint256, bool);
+    function reserveProperty(uint256 _propertyindex, uint256 _contractindex) external;
+    function releaseProperty(uint256 _propertyindex, uint256 _contractindex) external;
+    function sellProperty(address _newlandlord, uint256 _propertyindex, uint256 _contractindex, uint256 _selltime) external;
 
 }
-
 
 contract Notary {
 
@@ -67,42 +20,45 @@ contract Notary {
     address public seller;
     address public buyer;
 
-    uint public index;
-    uint public contractindex;
+    uint256 public index;
+    uint256 public contractindex;
 
-    uint public price;
-    uint public pricedifference;
-    uint public downpayment;
+    uint256 public price;
+    uint256 public pricedifference;
+    uint256 public downpayment;
+    uint256 public totalBalances;
 
-    uint public starttime;
-    uint public duration;
-    uint public endtime;
+    uint256 public starttime;
+    uint256 public duration;
+    uint256 public endtime;
 
-    uint public sellerprice;
-    uint public buyerprice;
+    uint256 public sellerprice;
+    uint256 public buyerprice;
 
-    uint public downpaymentbuyer;
-    uint public downpaymentseller;
+    uint256 public downpaymentbuyer;
+    uint256 public downpaymentseller;
 
-    uint public sellerduration;
-    uint public buyerduration;
+    uint256 public sellerduration;
+    uint256 public buyerduration;
 
-    event EmitDownPaymentIsSet (address who, uint howmuch);
-    event EmitAgreedForPreliminary (address who);
+    bool initialset;
+    bool public isreserved;
+    address public propertylandlord;
 
-    event EmitPreliminaryContractInitiated (address buyer, address seller,
-        uint price, uint downpaymentbuyer, uint starttime, uint duration);
-
-    event EmitSellerProposal(uint proposedprice, uint proposedduration);
-    event EmitBuyerProposal (uint proposedprice, uint proposedduration);
-    event EmitBuyerBalanceIncrease (uint howmuch);
-    event EmitContractVoided(bool isvoided);
-    event EmitContractBreaked(address who);
-    event EmitNewPriceSet(uint howmuch);
-    event EmitNewDurationSet (uint howmuch);
-    event EmitAgreementForTransaction(bool agreeementfortransaction);
-    event EmitTransactionComplete (address buyer, address seller, uint price, uint endtime);
-    event EmitBalanceIsClaimed (address claimer);
+    event DownPaymentIsSet (address who, uint256 howmuch);
+    event AgreedForPreliminary (address who);
+    event PreliminaryContractInitiated (address buyer,
+        uint256 price, uint256 starttime, uint256 duration);
+    event SellerProposal(uint256 proposedprice, uint256 proposedduration);
+    event BuyerProposal (uint256 proposedprice, uint256 proposedduration);
+    event BuyerBalanceIncrease (uint256 howmuch);
+    event ContractVoided(bool isvoided);
+    event ContractBreaked(address who);
+    event NewPriceSet(uint256 howmuch);
+    event NewDurationSet (uint256 howmuch);
+    event AgreementForTransaction(bool agreeementfortransaction);
+    event TransactionComplete (address buyer, address seller, uint256 price, uint256 endtime);
+    event BalanceIsClaimed (address claimer);
 
     modifier onlyBuyer {
         require(msg.sender == buyer);
@@ -138,48 +94,46 @@ contract Notary {
 
     mapping (address => bool) public agreedforpreliminary;
     mapping (address => bool) public agreedfortransaction;
-    mapping (address => uint) public balances;
+    mapping (address => uint256) public balances;
     mapping (address => bool) public breakscontract;
     mapping (address => bool) public agreedforvoid;
 
-    // Properly place these 3 variables
-    bool public isreserved;
-    uint public cadasternumber;
-    address public propertylandlord;
-
     //constructor
-    // CDBI address could be set manually in order to avoid confusion
     function Notary(
     address _seller,
-    address _buyer,
-    uint _propertyindex,
-    uint _price,
-    uint _duration,
+    uint256 _propertyindex,
     address _CDBAddress,
-    uint _contractindex,
-    uint _cadasternumber) public {
+    uint256 _contractindex) public {
 
         CDBI = CadasterDatabaseInterface(_CDBAddress);
-        (propertylandlord, cadasternumber, isreserved) = CDBI.forIndex(_propertyindex);
+        (propertylandlord, , isreserved) = CDBI.forIndex(_propertyindex);
 
         require(propertylandlord == _seller);
-        require(cadasternumber == _cadasternumber);
+
         seller = _seller;
-        buyer = _buyer;
         index = _propertyindex;
-        price = _price;
-        duration = _duration;
         contractindex = _contractindex;
 
     }
 
-    // TODO: merge the next 3 functions into a single one
+
+    function setInitialParameters(address _buyer,
+       uint256 _price,
+       uint256 _duration) external onlySeller {
+
+        require(!initialset);
+        initialset = true;
+        buyer = _buyer;
+        price = _price;
+        duration = _duration;
+    }
+
     // used by the CadasterDatabase contract to get the seller of the current contract
     function getNotarySeller() external view returns (address) {
         return seller;
     }
 
-    function getNotayCadasterNumber() external view returns (uint) {
+    function getNotayCadasterNumber() external view returns (uint256) {
         return cadasternumber;
     }
 
@@ -192,51 +146,52 @@ contract Notary {
     //  can be called multiple times prior transaction
     // attention: if parties fail to agree on a downpayment the contract just
     // waits for finish and has little effect as downpayment remains zero => no penalties
-    function downPayment(uint _downpayment) external payable onlyParties propertyIsNotReserved {
+    // BUG: one party can call this again and break ?
+    function downPayment(uint256 _downpayment) external payable onlyParties propertyIsNotReserved {
 
         require(_downpayment != 0);
         require(_downpayment == msg.value);
 
         if (msg.sender == buyer) {
             require(agreedforpreliminary[buyer] == false);
+            require(downpaymentbuyer == 0);
             downpaymentbuyer = _downpayment;
             balances[buyer] = balances[buyer].add(downpaymentbuyer);
         }
 
         if (msg.sender == seller) {
             require(agreedforpreliminary[seller] == false);
-	        downpaymentseller = _downpayment;
+            require(downpaymentseller == 0);
+            downpaymentseller = _downpayment;
             balances[seller] = balances[buyer].add(downpaymentseller);
         }
 
-        EmitDownPaymentIsSet(msg.sender, _downpayment);
+         emit DownPaymentIsSet(msg.sender, _downpayment);
     }
 
     // @dev When a party calls this it means he/she agrees with the terms.
     // @dev If both parties agree, preliminaryContract is triggered
-    function agreementForPreliminary() public onlyParties propertyIsNotReserved correctDownPayment {
+    // could this be called at the same time => does not know that the other one is also true  => not preliminaryContract ?
+    function agreementForPreliminary() external onlyParties propertyIsNotReserved correctDownPayment {
 
         if (msg.sender == buyer) {
             agreedforpreliminary[buyer] = true;
-            EmitAgreedForPreliminary(msg.sender);
+             AgreedForPreliminary(msg.sender);
         }
         if (msg.sender == seller) {
             agreedforpreliminary[seller] = true;
-            EmitAgreedForPreliminary(msg.sender);
+             AgreedForPreliminary(msg.sender);
         }
-        if (agreedforpreliminary[buyer] == true && agreedforpreliminary[seller] == true) preliminaryContract();
+        if (agreedforpreliminary[buyer] == true && agreedforpreliminary[seller] == true) {
+            balances[buyer] = balances[buyer].sub(downpaymentbuyer);
+            balances[seller] = balances[seller].sub(downpaymentseller);
+        }
     }
 
     // @dev This is the function which actually produces effect and locks the downpayment as escrow
-    //Checks-Effects-Interaction
-    function preliminaryContract() private onlyParties propertyIsNotReserved
-                              correctDownPayment returns (bool success) {
+    function preliminaryContract() public onlyParties propertyIsNotReserved correctDownPayment {
 
         require(agreedforpreliminary[buyer] == true && agreedforpreliminary[seller] == true);
-
-        require(balances[buyer] == downpaymentbuyer);
-        require(balances[buyer] == balances[seller]);
-        require(balances[seller] == downpaymentseller);
 
         starttime = block.timestamp;
         endtime = starttime.add(duration);
@@ -244,38 +199,34 @@ contract Notary {
         // update isreserved Could just manually set it
         (, , isreserved) = CDBI.forIndex(index);
 
-        balances[buyer] = balances[buyer].sub(downpaymentbuyer);
-        balances[seller] = balances[seller].sub(downpaymentseller);
         pricedifference = price.sub(downpaymentseller); // or downpaymentbuyer
-        return true;
-
-        EmitPreliminaryContractInitiated(buyer, seller, price, downpaymentbuyer, starttime, duration);
+        emit PreliminaryContractInitiated(buyer, price, starttime, duration);
     }
 
     // @dev Seller can propose diffrent terms for transaction (price and duration)
     // @param _sellerprice The new price proposed by the seller
     // @param _duration The new duration proposed by the seller
-    function sellerProposal(uint _sellerprice, uint _sellerduration) public onlySeller propertyIsReserved {
+    function sellerProposal(uint256 _sellerprice, uint256 _sellerduration) external onlySeller propertyIsReserved {
 
         require(_sellerduration > now.sub(starttime));
         sellerprice = _sellerprice;
         sellerduration = _sellerduration;
         triggerProposals();
 
-        EmitSellerProposal(_sellerprice, _sellerduration);
+        emit SellerProposal(_sellerprice, _sellerduration);
     }
 
     // @dev Buyer can propose diffrent terms for transaction (price and duration)
     // @param _buyerprice The new price proposed by the buyer
     // @param _duration The new duration proposed by the buyer
-    function buyerProposal(uint _buyerprice, uint _buyerduration) public onlyBuyer propertyIsReserved  {
+    function buyerProposal(uint256 _buyerprice, uint256 _buyerduration) external onlyBuyer propertyIsReserved  {
 
         require(_buyerduration > now.sub(starttime));
         buyerprice = _buyerprice;
         buyerduration = _buyerduration;
         triggerProposals();
 
-        EmitBuyerProposal(_buyerprice, _buyerduration);
+        emit BuyerProposal(_buyerprice, _buyerduration);
     }
 
     // @dev This function gets triggered eacht time either party proposes diffrent terms
@@ -285,128 +236,142 @@ contract Notary {
             price = sellerprice; // or price = buyerprice;
             pricedifference = price.sub(downpaymentseller);
 
-            EmitNewPriceSet(sellerprice);
+          emit NewPriceSet(sellerprice);
         }
         if (sellerduration == buyerduration && sellerduration != 0 && buyerduration != 0) {
             duration = buyerduration; // idem
             endtime = starttime.add(duration);
 
-            EmitNewDurationSet(buyerduration);
+            emit NewDurationSet(buyerduration);
         }
     }
 
     // @dev Allows the buyer to increase his balance so that it has enough funds for transaction
-    function increaseBuyerBalance() public payable onlyBuyer propertyIsReserved {
+    function increaseBuyerBalance() external payable onlyBuyer propertyIsReserved {
         // this can lock the contract if buyer forgets to increas balance
-        // prior to agreeing for transaction
+        // prior to agreeing for transaction => should remove it because
+        // buyer can claim all of it's balance
         require(agreedfortransaction[buyer] == false);
         balances[buyer] = balances[buyer].add(msg.value);
 
-        EmitBuyerBalanceIncrease(msg.value);
+         emit BuyerBalanceIncrease(msg.value);
+
     }
 
     // @dev Either party can call this function, breaking the contract and loosing the downpayment as a penalty
-    function disagreementForVoid() public onlyParties propertyIsReserved correctDownPayment {
+    function disagreementForVoid() external onlyParties propertyIsReserved correctDownPayment {
 
         if (msg.sender == buyer) {
             breakscontract[buyer] = true;
             transaction();
 
-            EmitContractBreaked(msg.sender);
+             emit ContractBreaked(msg.sender);
         }
         if (msg.sender == seller) {
             breakscontract[seller] = true;
             transaction();
 
-            EmitContractBreaked(msg.sender);
+             emit ContractBreaked(msg.sender);
         }
     }
 
     // @dev If both parties agree to void the contract, both receive the downpayment as a refund
-    function agreementForVoid () public onlyParties propertyIsReserved correctDownPayment {
+    function agreementForVoid () external onlyParties propertyIsReserved correctDownPayment {
 
         if (msg.sender == buyer) agreedforvoid[buyer] = true;
         if (msg.sender == seller) agreedforvoid[seller] = true;
         if (agreedforvoid[buyer] == true && agreedforvoid[seller] == true) {
             transaction();
 
-            EmitContractVoided(true);
+             emit ContractVoided(true);
         }
     }
 
     // @dev When a party calls this it means he agrees with the terms. If both agree tranasction is triggered
-    function agreementForTransaction () public onlyParties propertyIsReserved correctDownPayment  {
+    function agreementForTransaction () external onlyParties propertyIsReserved correctDownPayment  {
 
         if (msg.sender == buyer) {agreedfortransaction[buyer] = true;}
         if (msg.sender == seller) {agreedfortransaction[seller] = true;}
         if (agreedfortransaction[buyer] == true && agreedfortransaction[seller] == true) {
             transaction();
 
-            EmitAgreementForTransaction(true);
+            emit AgreementForTransaction(true);
         }
     }
 
+    // temporary alternative to Alarm Clock
+    function triggerTermination () external onlyParties {
+        require(now < endtime);
+        transaction();
+      }
+
     // @dev This is the funcion which resolves the contract either way
-    // TODO: case time expires and no agreement
-    function transaction () private propertyIsReserved correctDownPayment returns (bool transactioncomplete) {
+    function transaction () private propertyIsReserved correctDownPayment {
 
         if (balances[buyer] >= pricedifference && breakscontract[seller] == false && breakscontract[buyer] == false &&
             agreedforvoid[buyer] == false && agreedforvoid[seller] == false) {
 
-              //pricedifference = price - downpaymentbuyer; // or downpaymentseller
+            //pricedifference = price - downpaymentbuyer; // or downpaymentseller
             balances[buyer] = balances[buyer].sub(pricedifference);
-            balances[seller] = balances[seller].add(pricedifference);
-            balances[seller] = balances[seller].add(downpaymentseller) ;
-            balances[seller] = balances[seller].add(downpaymentbuyer);
+            balances[seller] = balances[seller].add(pricedifference).add(downpaymentseller).add(downpaymentbuyer);
             CDBI.sellProperty(buyer, index, contractindex, now);
+            // downpaymentbuyer = 0;
+            // downpaymentseller = 0;
+            isreserved = false;
 
         } else if (agreedforvoid[buyer] == true && agreedforvoid[seller] == true) {
         //  || (breakscontract[buyer] == true && breakscontract[seller] == true) this should not be possible
-            balances[buyer] = balances[buyer].add(downpaymentbuyer);
-            balances[seller] = balances[seller].add(downpaymentseller);
+            balances[buyer] = balances[buyer].add(downpaymentbuyer).add(downpaymentseller);
+            //balances[seller] = balances[seller].add(downpaymentseller);
             CDBI.releaseProperty(index, contractindex);
+            // downpaymentbuyer = 0;
+            // downpaymentseller = 0;
+            isreserved = false;
 
         } else if (breakscontract[buyer] == true && breakscontract[seller] == false) {
-            balances[seller] = balances[seller].add(downpaymentbuyer);
+            balances[seller] = balances[seller].add(downpaymentbuyer).add(downpaymentseller);
+            //balances[seller] = balances[seller].add(downpaymentseller);
             CDBI.releaseProperty(index, contractindex);
+             //downpaymentbuyer = 0;
+             //downpaymentseller = 0;
+            isreserved = false;
 
         } else if (breakscontract[buyer] == false && breakscontract[seller] == true) {
-            balances[buyer] = balances[buyer].add(downpaymentseller);
+            balances[buyer] = balances[buyer].add(downpaymentseller).add(downpaymentbuyer);
+            //balances[buyer] = balances[buyer].add(downpaymentbuyer);
             CDBI.releaseProperty(index, contractindex);
+             //downpaymentbuyer = 0;
+             //downpaymentseller = 0;
+            isreserved = false;
+
         }
 
-        return true;
-
-        EmitTransactionComplete(seller, buyer, price, endtime);
+        emit TransactionComplete(seller, buyer, price, endtime);
     }
 
-    // @dev Allows either party to claim it's balance
-    // Checks-Effects-Interaction
-    // replace this with pullpayment.sol
-    function claimBalance(address _claimer) public onlyParties {
+    // inspired by:
+    //https://github.com/OpenZeppelin/zeppelin-solidity/blob/master/contracts/payment/PullPayment.sol
 
-        if (_claimer == seller && balances[seller] > 0) {
-            seller.transfer(balances[seller]);
-            balances[seller] = 0;
+     function withdrawBalances() public onlyParties propertyIsNotReserved {
+        address claimer = msg.sender;
+        uint256 withdrawal = balances[claimer];
 
-        }
+        require(withdrawal != 0);
+        require(this.balance >= withdrawal);
 
-        if (_claimer == buyer && balances[buyer] > 0) {
-            buyer.transfer(balances[buyer]);
-            balances[buyer] = 0;
-        }
+        //totalBalances = totalBalances.sub(withdrawal);
+        balances[claimer] = 0;
 
-        EmitBalanceIsClaimed(_claimer);
+        assert(claimer.send(withdrawal));
+
+        emit BalanceIsClaimed(msg.sender);
     }
 
     // @dev fallback function
     function() public payable {}
 
-        // TODO: modify cadasternumber from uint to string ?
+        // TODO: modify cadasternumber from uint256 to string ?
         // TODO: Pause, Limit, Upgrade
-        // TODO: Rearrange function order based on visibility
-        // TODO: Gas optimizations
-        // TODO: use safemath in order to provent overflows
         // add a selfdestruct after both balances are claimed ?
         // TODO: There is no way to loop propertyarray as it would (presumably) be
         // very large and an OOG error would be reached fast.
